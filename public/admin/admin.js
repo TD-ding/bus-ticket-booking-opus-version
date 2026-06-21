@@ -21,6 +21,7 @@ document.querySelectorAll('.tabs button').forEach((btn) => {
     document.querySelectorAll('.tab-panel').forEach((p) => (p.style.display = 'none'));
     document.getElementById(`tab-${btn.dataset.tab}`).style.display = 'block';
     if (btn.dataset.tab === 'trips') loadTrips();
+    if (btn.dataset.tab === 'stations') loadStations();
     if (btn.dataset.tab === 'orders') loadOrders();
     if (btn.dataset.tab === 'users') loadUsers();
   };
@@ -70,6 +71,8 @@ function openTripModal(trip) {
   document.getElementById('f_bus_number').value = isEdit ? trip.bus_number : '';
   document.getElementById('f_from_city').value = isEdit ? trip.from_city : '';
   document.getElementById('f_to_city').value = isEdit ? trip.to_city : '';
+  document.getElementById('f_depart_station').value = isEdit ? (trip.depart_station || '') : '';
+  document.getElementById('f_arrive_station').value = isEdit ? (trip.arrive_station || '') : '';
   document.getElementById('f_depart_date').value = isEdit ? trip.depart_date : '';
   document.getElementById('f_depart_time').value = isEdit ? trip.depart_time : '';
   document.getElementById('f_price').value = isEdit ? trip.price : '';
@@ -92,6 +95,8 @@ document.getElementById('tripSave').onclick = async () => {
     bus_number: document.getElementById('f_bus_number').value.trim(),
     from_city: document.getElementById('f_from_city').value.trim(),
     to_city: document.getElementById('f_to_city').value.trim(),
+    depart_station: document.getElementById('f_depart_station').value.trim(),
+    arrive_station: document.getElementById('f_arrive_station').value.trim(),
     depart_date: document.getElementById('f_depart_date').value,
     depart_time: document.getElementById('f_depart_time').value,
     price: document.getElementById('f_price').value,
@@ -122,6 +127,78 @@ async function delTrip(id) {
   } catch (e) { flash(msgEl, e.message); }
 }
 
+/* ---------- 站点管理 ---------- */
+async function loadStations() {
+  clearFlash(msgEl);
+  try {
+    const { stations } = await api('/admin/stations');
+    const el = document.getElementById('stationsTable');
+    if (!stations.length) { el.innerHTML = '<div class="empty">暂无站点</div>'; return; }
+    el.innerHTML = `<table><thead><tr>
+      <th>ID</th><th>城市</th><th>站点名称</th><th>地址</th><th>操作</th>
+    </tr></thead><tbody>${stations.map((s) => `<tr>
+      <td>${s.id}</td>
+      <td>${escapeHtml(s.city)}</td>
+      <td>${escapeHtml(s.name)}</td>
+      <td class="muted">${escapeHtml(s.address || '-')}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost edit-station" data-id="${s.id}">编辑</button>
+        <button class="btn btn-sm btn-danger del-station" data-id="${s.id}">删除</button>
+      </td>
+    </tr>`).join('')}</tbody></table>`;
+    el.querySelectorAll('.edit-station').forEach((b) => {
+      b.onclick = () => openStationModal(stations.find((s) => s.id == b.dataset.id));
+    });
+    el.querySelectorAll('.del-station').forEach((b) => {
+      b.onclick = () => delStation(b.dataset.id);
+    });
+  } catch (e) { flash(msgEl, e.message); }
+}
+
+const stationModal = document.getElementById('stationModal');
+const stationMsg = document.getElementById('stationMsg');
+
+function openStationModal(st) {
+  clearFlash(stationMsg);
+  const isEdit = !!st;
+  document.getElementById('stationModalTitle').textContent = isEdit ? '编辑站点' : '新增站点';
+  document.getElementById('s_id').value = isEdit ? st.id : '';
+  document.getElementById('s_city').value = isEdit ? st.city : '';
+  document.getElementById('s_name').value = isEdit ? st.name : '';
+  document.getElementById('s_address').value = isEdit ? (st.address || '') : '';
+  stationModal.classList.add('show');
+}
+
+document.getElementById('addStationBtn').onclick = () => openStationModal(null);
+document.getElementById('stationCancel').onclick = () => stationModal.classList.remove('show');
+
+document.getElementById('stationSave').onclick = async () => {
+  clearFlash(stationMsg);
+  const id = document.getElementById('s_id').value;
+  const body = {
+    city: document.getElementById('s_city').value.trim(),
+    name: document.getElementById('s_name').value.trim(),
+    address: document.getElementById('s_address').value.trim(),
+  };
+  if (!body.city || !body.name) return flash(stationMsg, '城市和站点名必填');
+  try {
+    if (id) await api(`/admin/stations/${id}`, { method: 'PUT', body });
+    else await api('/admin/stations', { method: 'POST', body });
+    stationModal.classList.remove('show');
+    flash(msgEl, '保存成功', 'success');
+    loadStations();
+  } catch (e) { flash(stationMsg, e.message); }
+};
+
+async function delStation(id) {
+  if (!confirm('确认删除该站点？')) return;
+  try {
+    await api(`/admin/stations/${id}`, { method: 'DELETE' });
+    flash(msgEl, '已删除', 'success');
+    loadStations();
+  } catch (e) { flash(msgEl, e.message); }
+}
+
 /* ---------- 订单管理 ---------- */
 async function loadOrders() {
   clearFlash(msgEl);
@@ -131,7 +208,7 @@ async function loadOrders() {
     if (!orders.length) { el.innerHTML = '<div class="empty">暂无订单</div>'; return; }
     el.innerHTML = `<table><thead><tr>
       <th>订单号</th><th>用户</th><th>行程</th><th>发车</th><th>乘客</th>
-      <th>座位</th><th>金额</th><th>状态</th><th>下单时间</th><th>操作</th>
+      <th>座位</th><th>座位号</th><th>金额</th><th>状态</th><th>下单时间</th><th>操作</th>
     </tr></thead><tbody>${orders.map((o) => `<tr>
       <td>${escapeHtml(o.order_no)}</td>
       <td>${escapeHtml(o.username)}</td>
@@ -139,6 +216,7 @@ async function loadOrders() {
       <td>${o.depart_date} ${o.depart_time}</td>
       <td>${escapeHtml(o.passenger)}</td>
       <td>${o.seats}</td>
+      <td>${escapeHtml(o.seat_numbers || '-')}</td>
       <td>¥${o.amount}</td>
       <td>${o.status === 'paid' ? '<span class="badge badge-green">已购票</span>' : '<span class="badge badge-gray">已取消</span>'}</td>
       <td class="muted" style="font-size:12px">${o.created_at}</td>

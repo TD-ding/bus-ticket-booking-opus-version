@@ -17,8 +17,10 @@ router.get('/trips', (req, res) => {
 
 // 新增班次
 router.post('/trips', (req, res) => {
-  const { bus_number, from_city, to_city, depart_date, depart_time, price, total_seats } =
-    req.body || {};
+  const {
+    bus_number, from_city, to_city, depart_station, arrive_station,
+    depart_date, depart_time, price, total_seats,
+  } = req.body || {};
   if (!bus_number || !from_city || !to_city || !depart_date || !depart_time) {
     return res.status(400).json({ error: '班次号、城市、日期、时间必填' });
   }
@@ -29,10 +31,14 @@ router.post('/trips', (req, res) => {
   }
   const info = db
     .prepare(
-      `INSERT INTO trips (bus_number, from_city, to_city, depart_date, depart_time, price, total_seats, available_seats)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO trips (bus_number, from_city, to_city, depart_station, arrive_station, depart_date, depart_time, price, total_seats, available_seats)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(bus_number, from_city, to_city, depart_date, depart_time, p, seats, seats);
+    .run(
+      bus_number, from_city, to_city,
+      depart_station || null, arrive_station || null,
+      depart_date, depart_time, p, seats, seats
+    );
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
@@ -42,8 +48,8 @@ router.put('/trips/:id', (req, res) => {
   if (!trip) return res.status(404).json({ error: '班次不存在' });
 
   const {
-    bus_number, from_city, to_city, depart_date, depart_time,
-    price, total_seats, available_seats, status,
+    bus_number, from_city, to_city, depart_station, arrive_station,
+    depart_date, depart_time, price, total_seats, available_seats, status,
   } = req.body || {};
 
   const newTotal = total_seats != null ? parseInt(total_seats, 10) : trip.total_seats;
@@ -54,14 +60,21 @@ router.put('/trips/:id', (req, res) => {
   if (!Number.isInteger(newAvail) || newAvail < 0 || newAvail > newTotal) {
     return res.status(400).json({ error: '余票数必须在 0 到座位数之间' });
   }
+  // 缩减总座位时，不能小于已售座位数
+  const sold = db.prepare('SELECT COUNT(*) AS c FROM booked_seats WHERE trip_id = ?').get(trip.id).c;
+  if (newTotal < sold) {
+    return res.status(409).json({ error: `已售出 ${sold} 个座位，座位数不能小于该值` });
+  }
 
   db.prepare(
-    `UPDATE trips SET bus_number=?, from_city=?, to_city=?, depart_date=?, depart_time=?,
-       price=?, total_seats=?, available_seats=?, status=? WHERE id=?`
+    `UPDATE trips SET bus_number=?, from_city=?, to_city=?, depart_station=?, arrive_station=?,
+       depart_date=?, depart_time=?, price=?, total_seats=?, available_seats=?, status=? WHERE id=?`
   ).run(
     bus_number ?? trip.bus_number,
     from_city ?? trip.from_city,
     to_city ?? trip.to_city,
+    depart_station !== undefined ? (depart_station || null) : trip.depart_station,
+    arrive_station !== undefined ? (arrive_station || null) : trip.arrive_station,
     depart_date ?? trip.depart_date,
     depart_time ?? trip.depart_time,
     price != null ? parseFloat(price) : trip.price,
@@ -81,7 +94,55 @@ router.delete('/trips/:id', (req, res) => {
   if (active.c > 0) {
     return res.status(409).json({ error: '该班次存在有效订单，不能删除，可改为下架' });
   }
-  db.prepare('DELETE FROM trips WHERE id = ?').run(req.params.id);
+  db.transaction(() => {
+    db.prepare('DELETE FROM booked_seats WHERE trip_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM trips WHERE id = ?').run(req.params.id);
+  })();
+  res.json({ ok: true });
+});
+
+/* ----------------------- 线路站点管理 ----------------------- */
+
+router.get('/stations', (req, res) => {
+  const stations = db.prepare('SELECT * FROM stations ORDER BY city, name').all();
+  res.json({ stations });
+});
+
+router.post('/stations', (req, res) => {
+  const { city, name, address } = req.body || {};
+  if (!city || !String(city).trim() || !name || !String(name).trim()) {
+    return res.status(400).json({ error: '城市和站点名必填' });
+  }
+  const exists = db
+    .prepare('SELECT id FROM stations WHERE city = ? AND name = ?')
+    .get(String(city).trim(), String(name).trim());
+  if (exists) return res.status(409).json({ error: '该城市下已存在同名站点' });
+  const info = db
+    .prepare('INSERT INTO stations (city, name, address) VALUES (?, ?, ?)')
+    .run(String(city).trim(), String(name).trim(), address ? String(address).trim() : null);
+  res.status(201).json({ id: info.lastInsertRowid });
+});
+
+router.put('/stations/:id', (req, res) => {
+  const st = db.prepare('SELECT * FROM stations WHERE id = ?').get(req.params.id);
+  if (!st) return res.status(404).json({ error: '站点不存在' });
+  const { city, name, address } = req.body || {};
+  const newCity = city != null ? String(city).trim() : st.city;
+  const newName = name != null ? String(name).trim() : st.name;
+  if (!newCity || !newName) return res.status(400).json({ error: '城市和站点名必填' });
+  const dup = db
+    .prepare('SELECT id FROM stations WHERE city = ? AND name = ? AND id <> ?')
+    .get(newCity, newName, st.id);
+  if (dup) return res.status(409).json({ error: '该城市下已存在同名站点' });
+  db.prepare('UPDATE stations SET city=?, name=?, address=? WHERE id=?')
+    .run(newCity, newName, address !== undefined ? (address ? String(address).trim() : null) : st.address, st.id);
+  res.json({ ok: true });
+});
+
+router.delete('/stations/:id', (req, res) => {
+  const st = db.prepare('SELECT * FROM stations WHERE id = ?').get(req.params.id);
+  if (!st) return res.status(404).json({ error: '站点不存在' });
+  db.prepare('DELETE FROM stations WHERE id = ?').run(st.id);
   res.json({ ok: true });
 });
 
@@ -118,6 +179,7 @@ router.post('/orders/:id/cancel', (req, res) => {
       db.prepare("UPDATE orders SET status='cancelled' WHERE id = ?").run(order.id);
       db.prepare('UPDATE trips SET available_seats = available_seats + ? WHERE id = ?')
         .run(order.seats, order.trip_id);
+      db.prepare('DELETE FROM booked_seats WHERE order_id = ?').run(order.id);
     })();
     res.json({ ok: true });
   } catch (e) {
