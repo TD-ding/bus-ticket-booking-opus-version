@@ -1,0 +1,20 @@
+{
+  "name": "bus-ticket-booking",
+  "version": "1.0.0",
+  "description": "长途汽车票在线订购网站（仿 12306），含用户端、管理员后台。",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node src/seed.js",
+    "test": "node --test"
+  },
+  "keywords": ["bus", "ticket", "booking", "express", "sqlite"],
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.3.0",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
