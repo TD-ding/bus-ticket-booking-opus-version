@@ -5,3 +5,6 @@ data/*.db-wal
 .env
 *.log
 .DS_Store
+.vscode/
+.idea/
+.playwright-mcp/
