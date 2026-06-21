@@ -138,3 +138,110 @@ test('管理员可创建班次，普通用户被拒绝', async () => {
   });
   assert.strictEqual(ok.status, 201);
 });
+
+test('指定座位下单成功，座位图标记已售', async () => {
+  const admin = await req('/api/auth/login', { method: 'POST', body: { username: 'admin', password: 'admin123' } });
+  const create = await req('/api/admin/trips', {
+    method: 'POST', token: admin.data.token,
+    body: { bus_number: 'SEAT', from_city: '选座城', to_city: '到达城', depart_date: '2030-03-03', depart_time: '10:00', price: 30, total_seats: 10 },
+  });
+  const tripId = create.data.id;
+  const login = await req('/api/auth/login', { method: 'POST', body: { username: 'alice', password: 'pass123' } });
+
+  const order = await req('/api/orders', {
+    method: 'POST', token: login.data.token,
+    body: { trip_id: tripId, seat_numbers: [2, 5], passenger: '张三' },
+  });
+  assert.strictEqual(order.status, 201);
+  assert.deepStrictEqual(order.data.order.seat_numbers, [2, 5]);
+
+  const seats = await req(`/api/trips/${tripId}/seats`);
+  assert.deepStrictEqual(seats.data.taken_seats, [2, 5]);
+  assert.strictEqual(seats.data.available_seats, 8);
+});
+
+test('已售座位不能重复购买', async () => {
+  const admin = await req('/api/auth/login', { method: 'POST', body: { username: 'admin', password: 'admin123' } });
+  const create = await req('/api/admin/trips', {
+    method: 'POST', token: admin.data.token,
+    body: { bus_number: 'DUP', from_city: 'c1', to_city: 'c2', depart_date: '2030-04-04', depart_time: '11:00', price: 20, total_seats: 6 },
+  });
+  const tripId = create.data.id;
+  const login = await req('/api/auth/login', { method: 'POST', body: { username: 'alice', password: 'pass123' } });
+
+  const first = await req('/api/orders', {
+    method: 'POST', token: login.data.token, body: { trip_id: tripId, seat_numbers: [1], passenger: 'a' },
+  });
+  assert.strictEqual(first.status, 201);
+  const dup = await req('/api/orders', {
+    method: 'POST', token: login.data.token, body: { trip_id: tripId, seat_numbers: [1], passenger: 'b' },
+  });
+  assert.strictEqual(dup.status, 409);
+});
+
+test('座位号超出范围被拒绝', async () => {
+  const admin = await req('/api/auth/login', { method: 'POST', body: { username: 'admin', password: 'admin123' } });
+  const create = await req('/api/admin/trips', {
+    method: 'POST', token: admin.data.token,
+    body: { bus_number: 'RNG', from_city: 'r1', to_city: 'r2', depart_date: '2030-05-05', depart_time: '12:00', price: 20, total_seats: 4 },
+  });
+  const login = await req('/api/auth/login', { method: 'POST', body: { username: 'alice', password: 'pass123' } });
+  const r = await req('/api/orders', {
+    method: 'POST', token: login.data.token, body: { trip_id: create.data.id, seat_numbers: [99], passenger: 'a' },
+  });
+  assert.strictEqual(r.status, 400);
+});
+
+test('取消选座订单后座位重新可售', async () => {
+  const admin = await req('/api/auth/login', { method: 'POST', body: { username: 'admin', password: 'admin123' } });
+  const create = await req('/api/admin/trips', {
+    method: 'POST', token: admin.data.token,
+    body: { bus_number: 'REL', from_city: 'x1', to_city: 'x2', depart_date: '2030-06-06', depart_time: '13:00', price: 20, total_seats: 5 },
+  });
+  const tripId = create.data.id;
+  const login = await req('/api/auth/login', { method: 'POST', body: { username: 'alice', password: 'pass123' } });
+  const order = await req('/api/orders', {
+    method: 'POST', token: login.data.token, body: { trip_id: tripId, seat_numbers: [3], passenger: 'a' },
+  });
+  await req(`/api/orders/${order.data.order.id}/cancel`, { method: 'POST', token: login.data.token });
+  const seats = await req(`/api/trips/${tripId}/seats`);
+  assert.deepStrictEqual(seats.data.taken_seats, []);
+  // 座位释放后可再次购买
+  const rebook = await req('/api/orders', {
+    method: 'POST', token: login.data.token, body: { trip_id: tripId, seat_numbers: [3], passenger: 'b' },
+  });
+  assert.strictEqual(rebook.status, 201);
+});
+
+test('管理员可增删改查线路站点，普通用户被拒绝', async () => {
+  const admin = await req('/api/auth/login', { method: 'POST', body: { username: 'admin', password: 'admin123' } });
+  const user = await req('/api/auth/login', { method: 'POST', body: { username: 'alice', password: 'pass123' } });
+
+  const denied = await req('/api/admin/stations', {
+    method: 'POST', token: user.data.token, body: { city: '北京', name: '某站' },
+  });
+  assert.strictEqual(denied.status, 403);
+
+  const add = await req('/api/admin/stations', {
+    method: 'POST', token: admin.data.token, body: { city: '北京', name: '测试站', address: '某路1号' },
+  });
+  assert.strictEqual(add.status, 201);
+  const stationId = add.data.id;
+
+  // 重复同城同名被拒
+  const dup = await req('/api/admin/stations', {
+    method: 'POST', token: admin.data.token, body: { city: '北京', name: '测试站' },
+  });
+  assert.strictEqual(dup.status, 409);
+
+  const upd = await req(`/api/admin/stations/${stationId}`, {
+    method: 'PUT', token: admin.data.token, body: { name: '测试站改名' },
+  });
+  assert.strictEqual(upd.status, 200);
+
+  const list = await req('/api/admin/stations', { token: admin.data.token });
+  assert.ok(list.data.stations.some((s) => s.id === stationId && s.name === '测试站改名'));
+
+  const del = await req(`/api/admin/stations/${stationId}`, { method: 'DELETE', token: admin.data.token });
+  assert.strictEqual(del.status, 200);
+});
