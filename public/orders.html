@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>我的订单 - 畅途客运</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="navbar">
+    <a class="brand" href="/">畅途客运<span>长途汽车票</span></a>
+    <nav id="nav"></nav>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h1>我的订单</h1>
+      <div id="msg" class="msg" style="display:none"></div>
+      <div id="orderList"></div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    const msgEl = document.getElementById('msg');
+    const listEl = document.getElementById('orderList');
+
+    if (!Auth.isLoggedIn) location.href = '/login.html';
+
+    document.getElementById('nav').innerHTML = `
+      <a href="/">首页</a>
+      <span>你好，${escapeHtml(Auth.user?.username || '')}</span>
+      <button id="logoutBtn">退出</button>`;
+    document.getElementById('logoutBtn').onclick = () => { Auth.clear(); location.href = '/'; };
+
+    function statusBadge(s) {
+      return s === 'paid'
+        ? '<span class="badge badge-green">已购票</span>'
+        : '<span class="badge badge-gray">已取消</span>';
+    }
+
+    async function load() {
+      clearFlash(msgEl);
+      try {
+        const { orders } = await api('/orders');
+        if (!orders.length) {
+          listEl.innerHTML = '<div class="empty">暂无订单，<a href="/">去购票</a></div>';
+          return;
+        }
+        listEl.innerHTML = `<table>
+          <thead><tr>
+            <th>订单号</th><th>行程</th><th>发车</th><th>乘客</th>
+            <th>座位</th><th>金额</th><th>状态</th><th>操作</th>
+          </tr></thead><tbody>${orders.map(rowHtml).join('')}</tbody></table>`;
+        document.querySelectorAll('.cancel-btn').forEach((b) => {
+          b.onclick = () => cancelOrder(b.dataset.id);
+        });
+      } catch (e) { flash(msgEl, e.message); }
+    }
+
+    function rowHtml(o) {
+      const canCancel = o.status === 'paid';
+      return `<tr>
+        <td>${escapeHtml(o.order_no)}</td>
+        <td>${escapeHtml(o.from_city)} → ${escapeHtml(o.to_city)}<br>
+            <span class="muted" style="font-size:12px">${escapeHtml(o.bus_number)}</span></td>
+        <td>${o.depart_date} ${o.depart_time}</td>
+        <td>${escapeHtml(o.passenger)}</td>
+        <td>${o.seats}</td>
+        <td>¥${o.amount}</td>
+        <td>${statusBadge(o.status)}</td>
+        <td>${canCancel
+          ? `<button class="btn btn-sm btn-danger cancel-btn" data-id="${o.id}">取消</button>`
+          : '-'}</td>
+      </tr>`;
+    }
+
+    async function cancelOrder(id) {
+      if (!confirm('确认取消该订单？取消后将恢复余票。')) return;
+      try {
+        await api(`/orders/${id}/cancel`, { method: 'POST' });
+        flash(msgEl, '订单已取消', 'success');
+        load();
+      } catch (e) { flash(msgEl, e.message); }
+    }
+
+    load();
+  </script>
+</body>
+</html>

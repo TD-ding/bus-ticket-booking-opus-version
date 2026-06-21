@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理后台 - 畅途客运</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="navbar">
+    <a class="brand" href="/admin/">畅途客运<span>管理后台</span></a>
+    <nav id="nav"></nav>
+  </div>
+
+  <div class="container">
+    <div class="tabs">
+      <button data-tab="trips" class="active">班次管理</button>
+      <button data-tab="orders">订单管理</button>
+      <button data-tab="users">用户管理</button>
+    </div>
+
+    <div id="msg" class="msg" style="display:none"></div>
+
+    <!-- 班次管理 -->
+    <div id="tab-trips" class="tab-panel">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h2 style="margin:0">班次列表</h2>
+          <button class="btn" id="addTripBtn">+ 新增班次</button>
+        </div>
+        <div id="tripsTable" class="mt"></div>
+      </div>
+    </div>
+
+    <!-- 订单管理 -->
+    <div id="tab-orders" class="tab-panel" style="display:none">
+      <div class="card">
+        <h2>订单列表</h2>
+        <div id="ordersTable" class="mt"></div>
+      </div>
+    </div>
+
+    <!-- 用户管理 -->
+    <div id="tab-users" class="tab-panel" style="display:none">
+      <div class="card">
+        <h2>用户列表</h2>
+        <div id="usersTable" class="mt"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 班次编辑弹窗 -->
+  <div class="modal-backdrop" id="tripModal">
+    <div class="modal">
+      <h2 id="tripModalTitle">新增班次</h2>
+      <input type="hidden" id="tripId" />
+      <div class="form-grid">
+        <div><label>班次号</label><input id="f_bus_number" /></div>
+        <div><label>出发城市</label><input id="f_from_city" /></div>
+        <div><label>到达城市</label><input id="f_to_city" /></div>
+        <div><label>出发日期</label><input type="date" id="f_depart_date" /></div>
+        <div><label>出发时间</label><input type="time" id="f_depart_time" /></div>
+        <div><label>票价（元）</label><input type="number" id="f_price" min="0" step="0.01" /></div>
+        <div><label>座位数</label><input type="number" id="f_total_seats" min="1" /></div>
+        <div id="availWrap"><label>余票数</label><input type="number" id="f_available_seats" min="0" /></div>
+        <div id="statusWrap"><label>状态</label>
+          <select id="f_status"><option value="on">上架</option><option value="off">下架</option></select>
+        </div>
+      </div>
+      <div id="tripMsg" class="msg mt" style="display:none"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="tripCancel">取消</button>
+        <button class="btn" id="tripSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/admin/admin.js"></script>
+</body>
+</html>
