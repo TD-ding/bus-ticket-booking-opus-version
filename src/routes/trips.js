@@ -29,6 +29,22 @@ router.get('/cities', (req, res) => {
   res.json({ cities: rows.map((r) => r.city) });
 });
 
+// 班次座位图：返回总座位数与已售座位号（用于前端选座）
+router.get('/:id/seats', (req, res) => {
+  const trip = db.prepare('SELECT * FROM trips WHERE id = ?').get(req.params.id);
+  if (!trip) return res.status(404).json({ error: '班次不存在' });
+  const taken = db
+    .prepare('SELECT seat_no FROM booked_seats WHERE trip_id = ? ORDER BY seat_no')
+    .all(trip.id)
+    .map((r) => r.seat_no);
+  res.json({
+    trip_id: trip.id,
+    total_seats: trip.total_seats,
+    available_seats: trip.available_seats,
+    taken_seats: taken,
+  });
+});
+
 // 班次详情
 router.get('/:id', (req, res) => {
   const trip = db.prepare('SELECT * FROM trips WHERE id = ?').get(req.params.id);
