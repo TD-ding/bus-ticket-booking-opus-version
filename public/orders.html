@@ -50,7 +50,7 @@
         listEl.innerHTML = `<table>
           <thead><tr>
             <th>订单号</th><th>行程</th><th>发车</th><th>乘客</th>
-            <th>座位</th><th>金额</th><th>状态</th><th>操作</th>
+            <th>座位</th><th>座位号</th><th>金额</th><th>状态</th><th>操作</th>
           </tr></thead><tbody>${orders.map(rowHtml).join('')}</tbody></table>`;
         document.querySelectorAll('.cancel-btn').forEach((b) => {
           b.onclick = () => cancelOrder(b.dataset.id);
@@ -67,6 +67,7 @@
         <td>${o.depart_date} ${o.depart_time}</td>
         <td>${escapeHtml(o.passenger)}</td>
         <td>${o.seats}</td>
+        <td>${escapeHtml(o.seat_numbers || '-')}</td>
         <td>¥${o.amount}</td>
         <td>${statusBadge(o.status)}</td>
         <td>${canCancel

@@ -41,16 +41,22 @@
   <!-- 购票弹窗 -->
   <div class="modal-backdrop" id="bookModal">
     <div class="modal">
-      <h2>确认购票</h2>
+      <h2>选座购票</h2>
       <div id="bookInfo" class="mt"></div>
       <div class="form-row mt">
         <label>乘客姓名</label>
         <input type="text" id="passenger" placeholder="请输入乘客姓名" />
       </div>
-      <div class="form-row">
-        <label>购买座位数（1-5）</label>
-        <input type="number" id="seatCount" value="1" min="1" max="5" />
+
+      <label>选择座位（最多 5 个）</label>
+      <div class="seatmap-legend">
+        <span><i class="seat-demo seat-free"></i> 可选</span>
+        <span><i class="seat-demo seat-picked"></i> 已选</span>
+        <span><i class="seat-demo seat-taken"></i> 已售</span>
       </div>
+      <div id="seatMap" class="seatmap"></div>
+      <div id="seatSummary" class="seat-summary muted"></div>
+
       <div id="bookMsg" class="msg" style="display:none"></div>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="bookCancel">取消</button>

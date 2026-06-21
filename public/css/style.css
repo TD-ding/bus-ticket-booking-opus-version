@@ -133,3 +133,35 @@ tr:hover td { background: #fafbfd; }
   font-size: 15px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px;
 }
 .tabs button.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+/* ---------- 选座座位图 ---------- */
+.seatmap {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+  margin: 10px 0;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.seat {
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  background: #fff;
+  color: var(--text);
+  transition: all 0.12s;
+}
+.seat-free:hover { border-color: var(--primary); background: #f0f5ff; }
+.seat-picked { background: var(--primary); color: #fff; border-color: var(--primary); }
+.seat-taken { background: #eef0f3; color: #b6bcc6; cursor: not-allowed; }
+
+.seatmap-legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin: 6px 0; }
+.seatmap-legend span { display: flex; align-items: center; gap: 5px; }
+.seat-demo { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); }
+.seat-demo.seat-free { background: #fff; }
+.seat-demo.seat-picked { background: var(--primary); border-color: var(--primary); }
+.seat-demo.seat-taken { background: #eef0f3; }
+.seat-summary { font-size: 13px; margin: 8px 0 4px; }
